@@ -18,7 +18,20 @@ class IpfsDatastore(object):
             f.write(content)
             f.flush()
             result = self.client.add(f.name)
-        return result[1][u'Hash']
+
+        if isinstance(result, basestring):
+            return result
+
+        # when adding a file, we only want the entry pointing to the file's
+        # contents, not the entries for the intermediate directories.
+        # if the result is a list, the first entry will be, e.g:
+        # {u'Bytes': 22, u'Name': u'/tmp/foo/bar/tmp7Hobfu'}
+        # followed by entries for the file, plus entries for '/tmp', '/tmp/foo',
+        # etc.
+        header = result.pop(0)
+        name = header['Name']
+        hashes = [h['Hash'] for h in result if h['Name'] == name]
+        return hashes[0]
 
     def get(self, ref):
         if isinstance(ref, MultihashReference):
