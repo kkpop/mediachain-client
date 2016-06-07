@@ -1,18 +1,8 @@
 import cbor
 from base58 import b58encode, b58decode
-from tempfile import NamedTemporaryFile
-from multihash import SHA2_256
-import ipfsApi
+from multihash import SHA2_256, encode as multihash_encode
 import pprint
 
-# DEMO PURPOSES ONLY
-def multihash_encode(b, _):
-    ipfs = ipfsApi.Client('127.0.0.1', 5001)
-    with NamedTemporaryFile() as f:
-        f.write(b)
-        f.flush()
-        m = ipfs.add(f.name)
-        return b58decode(m)
 
 class Record(object):
     meta = dict()

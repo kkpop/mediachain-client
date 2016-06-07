@@ -10,6 +10,7 @@ from grpc.framework.interfaces.face.face import AbortionError
 from mediachain.datastore.data_objects import Artefact, Entity, \
     ArtefactCreationCell, MultihashReference
 from mediachain.datastore.dynamo import get_db
+from mediachain.datastore.ipfs import IpfsDatastore
 from mediachain.transactor.client import TransactorClient
 
 TRANSLATOR_ID = u'GettyTranslator/0.1'
@@ -76,7 +77,7 @@ def getty_artefacts(transactor,
     entities = dedup_artists(transactor, datastore, dd, max_num)
 
     for content, getty_json in walk_json_dir(dd, max_num):
-        raw_ref_str = datastore.put(content)
+        raw_ref_str = put_raw_data(content)
         raw_ref = MultihashReference.from_base58(raw_ref_str)
         yield getty_to_mediachain_objects(
             transactor, raw_ref, getty_json, entities
@@ -97,7 +98,7 @@ def dedup_artists(transactor,
         if n is None or n in artist_name_map:
             continue
         unique += 1
-        raw_ref_str = datastore.put(content)
+        raw_ref_str = put_raw_data(content)
         artist_name_map[n] = raw_ref_str
 
         sys.stdout.write('\r')
@@ -144,3 +145,11 @@ def walk_json_dir(dd='getty/json/images',
                 except ValueError:
                     print "couldn't decode json from {}".format(fn)
                     continue
+
+
+def put_raw_data(raw):
+    ipfs = IpfsDatastore()
+    # print('adding raw metadata to ipfs...')
+    ref = ipfs.put(raw)
+    # print('raw metadata added. ref: ' + str(ref))
+    return ref
