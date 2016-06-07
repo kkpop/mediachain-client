@@ -10,6 +10,7 @@ from mediachain.datastore.data_objects import Artefact, Entity, \
 from mediachain.datastore.dynamo import get_db
 from mediachain.datastore.ipfs import IpfsDatastore
 from mediachain.transactor.client import TransactorClient
+from mediachain.getty.thumbnails import get_thumbnail_data, make_jpeg_data_uri
 
 TRANSLATOR_ID = u'GettyTranslator/0.1'
 
@@ -30,7 +31,8 @@ def ingest(host, port, dir_root, max_num=0):
         print("RPC Error: " + str(e))
 
 
-def getty_to_mediachain_objects(transactor, raw_ref, getty_json, entities):
+def getty_to_mediachain_objects(transactor, raw_ref, getty_json, entities,
+                                thumbnail_ref=None, thumbnail_uri=None):
     common_meta = {u'rawRef': raw_ref.to_map(),
                    u'translatedAt': unicode(datetime.utcnow().isoformat()),
                    u'translator': TRANSLATOR_ID}
@@ -54,6 +56,14 @@ def getty_to_mediachain_objects(transactor, raw_ref, getty_json, entities):
                 [x['text'] for x in getty_json['keywords'] if 'text' in x],
             u'date_created': getty_json['date_created']
             }
+
+    if thumbnail_ref is not None:
+        m = MultihashReference.from_base58(thumbnail_ref)
+        data[u'thumbnail'] = m.to_map()
+
+    if thumbnail_uri is not None:
+        data[u'thumbnail_base64'] = thumbnail_uri
+
     artefact_meta = deepcopy(common_meta)
     artefact_meta.update({u'data': data})
 
@@ -74,11 +84,22 @@ def getty_artefacts(transactor,
                     max_num=0):
     entities = dedup_artists(transactor, datastore, dd, max_num)
 
-    for content, getty_json in walk_json_dir(dd, max_num):
+    for content, file_name in walk_json_dir(dd, max_num):
         raw_ref_str = put_raw_data(content)
         raw_ref = MultihashReference.from_base58(raw_ref_str)
+        getty_json = json.loads(content.decode('utf-8'))
+
+        thumbnail_data = get_thumbnail_data(file_name)
+        if thumbnail_data is not None:
+            thumbnail_ref = put_raw_data(thumbnail_data)
+            thumbnail_uri = make_jpeg_data_uri(thumbnail_data)
+        else:
+            thumbnail_ref = None
+            thumbnail_uri = None
+
         yield getty_to_mediachain_objects(
-            transactor, raw_ref, getty_json, entities
+            transactor, raw_ref, getty_json, entities,
+            thumbnail_ref=thumbnail_ref, thumbnail_uri=thumbnail_uri
         )
 
 
@@ -90,7 +111,8 @@ def dedup_artists(transactor,
     artist_name_map = {}
     total_parsed = 0
     unique = 0
-    for content, getty_json in walk_json_dir(dd, max_num):
+    for content, _ in walk_json_dir(dd, max_num):
+        getty_json = json.loads(content.decode('utf-8'))
         total_parsed += 1
         n = getty_json['artist']
         if n is None or n in artist_name_map:
@@ -128,7 +150,7 @@ def walk_json_dir(dd='getty',
     for dir_name, subdir_list, file_list in walk(dd):
         for fn in file_list:
             ext = path.splitext(fn)[-1]
-            if ext.lower() != 'json':
+            if ext.lower() != '.json':
                 continue
 
             nn += 1
@@ -142,11 +164,11 @@ def walk_json_dir(dd='getty',
             with open(fn, mode='rb') as f:
                 try:
                     content = f.read()
-                    decoded_json = json.loads(content.decode('utf-8'))
-                    yield content, decoded_json
                 except ValueError:
                     print "couldn't import json from {}".format(fn)
                     continue
+                yield content, fn
+
 
 
 def put_raw_data(raw):
