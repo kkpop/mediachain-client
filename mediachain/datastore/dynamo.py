@@ -5,7 +5,7 @@ from base58 import b58encode
 from boto3.dynamodb.types import Binary
 from multihash import encode as multihash_encode, SHA2_256
 
-from mediachain.datastore.data_objects import Record, MultihashReference
+from mediachain.datastore.data_objects import Record, MultihashReference, multihash_encode
 
 __AWS_CONFIG=dict()
 __DB_INSTANCE=None
@@ -31,6 +31,7 @@ class DynamoDatastore(object):
         cfg.update(kwargs)
         self.mediachain_table_name = cfg.pop('mediachain_table_name')
         self.dynamo = boto3.resource('dynamodb', **cfg)
+        
 
     def get_table(self, name):
         return self.dynamo.Table(name)
