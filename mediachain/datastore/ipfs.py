@@ -29,6 +29,9 @@ class IpfsDatastore(object):
         # followed by entries for the file, plus entries for '/tmp', '/tmp/foo',
         # etc.
         header = result.pop(0)
+        if 'Hash' in header:
+            return header['Hash']
+
         name = header['Name']
         hashes = [h['Hash'] for h in result if h['Name'] == name]
         return hashes[0]
